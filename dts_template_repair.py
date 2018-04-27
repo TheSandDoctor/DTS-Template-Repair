@@ -52,7 +52,7 @@ def save_edit(page, utils, text):
     if not call_home(site):#config):
         raise ValueError("Kill switch on-wiki is false. Terminating program.")
     time = 0
-    edit_summary = """'Removed deprecated parameter(s) from [[Template:Infobox album]]/[[Template:Extra chronology]] / [[Template:Extra album cover]] / [[Template:Extra track listing]] using [[User:""" + config.get('enwikidep','username') + "| " + config.get('enwikidep','username') + """]]. Questions? [[User talk:TheSandDoctor|msg TSD!]] (please mention that this is task #3! [[Wikipedia:Bots/Requests for approval/DeprecatedFixerBot 3|BRFA in-progress]])"""
+    edit_summary = """'Removed deprecated link parameter from [[Template:Dts]] (or one of its redirects/aliases) using [[User:""" + config.get('enwikidep','username') + "| " + config.get('enwikidep','username') + """]]. Questions? [[User talk:TheSandDoctor|msg TSD!]] (please mention that this is task #4!)"""
     while True:
          #text = page.edit()
         if time == 1:
@@ -101,11 +101,11 @@ def save_edit(page, utils, text):
                     print("Content not changed, don't print output")
                 break
             else:
-                print("Would have saved here")
-                break
+                #print("Would have saved here")
+                #break
                 #TODO: Enable
-            #    page.save(text, summary=edit_summary, bot=True, minor=True)
-            #    print("Saved page")
+                page.save(text, summary=edit_summary, bot=True, minor=True)
+                print("Saved page")
         except [[EditError]]:
             print("Error")
             time = 1
@@ -157,7 +157,7 @@ def process_page(text,dry_run):
             try:
                 #name = template.name
                 #template.name = "d" + temp
-                if(type and template.has("link")):
+                if(template.has("link")):
                     template.remove("link")
                     content_changed = True
                 print("params")
@@ -214,7 +214,7 @@ def category_run(cat_name, utils, site, offset,limited_run,pages_to_run):
                 return  # run out of pages in limited run
 def main():
     dry_run = False
-    pages_to_run = 10
+    pages_to_run = 80
     offset = 0
     category = "Dts templates with deprecated parameters"
     limited_run = True
@@ -236,8 +236,8 @@ def main():
     config = configparser.RawConfigParser()
     config.read('credentials.txt')
     try:
-        pass
-        #site.login(config.get('enwikidep','username'), config.get('enwikidep', 'password'))
+        #pass
+        site.login(config.get('enwikidep','username'), config.get('enwikidep', 'password'))
     except errors.LoginError as e:
         #print(e[1]['reason'])
         print(e)
@@ -245,8 +245,10 @@ def main():
 
     utils = [config,site,dry_run]
     try:
-        single_run('4th English Album', utils, site)
-        #category_run(category, utils, site, offset,limited_run,pages_to_run)
+        single_run("User:JandK87/Irish (UK) general election, December 1910", utils, site)
+        single_run('User:JandK87/List of UK by elections in Ireland', utils, site)
+        single_run('List of Irish by-elections', utils, site)
+    #    category_run(category, utils, site, offset,limited_run,pages_to_run)
     except ValueError as e:
         print("\n\n" + str(e))
 
