@@ -3,7 +3,6 @@ import mwclient, configparser, mwparserfromhell, argparse,re, pathlib
 from time import sleep
 
 def call_home(site):
-    #page = site.Pages['User:' + config.get('enwiki','username') + "/status"]
     page = site.Pages['User:DeprecatedFixerBot/status']
     text = page.text()
     if "false" in text.lower():
@@ -31,21 +30,16 @@ def allow_bots(text, user):
                     return False
     return True
 def save_edit(page, utils, text):
-    config = utils[0]
-
-    site = utils[1]
-    dry_run = utils[2]
+    config,site,dry_run = utils
     original_text = text
     if not dry_run:
         if not allow_bots(original_text, config.get('enwikidep','username')):
             print("Page editing blocked as template preventing edit is present.")
             return
-    #print("{}".format(dry_run))
     code = mwparserfromhell.parse(text)
     for template in code.filter_templates():
-        if template.name.matches("nobots") or template.name.matches("Wikipedia:Exclusion compliant"):
-            if template.has("allow"):
-                if "DeprecatedFixerBot" in template.get("allow").value:
+        if ((template.name.matches("nobots") or template.name.matches("Wikipedia:Exclusion compliant"))
+            and template.has("allow") and "DeprecatedFixerBot" in template.get("allow").value):
                     break # can edit
             print("\n\nPage editing blocked as template preventing edit is present.\n\n")
             return
@@ -54,8 +48,11 @@ def save_edit(page, utils, text):
     time = 0
     edit_summary = """'Removed deprecated link parameter from [[Template:Dts]] (or one of its redirects/aliases) using [[User:""" + config.get('enwikidep','username') + "| " + config.get('enwikidep','username') + """]]. Questions? [[User talk:TheSandDoctor|msg TSD!]] (please mention that this is task #4!)"""
     while True:
-         #text = page.edit()
         if time == 1:
+            """
+            There was an edit error (probably an edit conflict),
+            so best to refetch the page and rerun.
+            """
             text = site.Pages[page.page_title].text()
         try:
             content_changed, text = process_page(original_text,dry_run)
@@ -101,9 +98,6 @@ def save_edit(page, utils, text):
                     print("Content not changed, don't print output")
                 break
             else:
-                #print("Would have saved here")
-                #break
-                #TODO: Enable
                 page.save(text, summary=edit_summary, bot=True, minor=True)
                 print("Saved page")
         except [[EditError]]:
@@ -128,6 +122,11 @@ def get_valid_filename(s):
     return re.sub(r'(?u)[^-\w.]', '', s)
 
 def figure_type(template):
+    """
+    Figure out the type (name) of the template in question. This was originally
+    in process_page(), but it became unwieldy.
+    Returns false if the template is none of the ones we are looking for.
+    """
     if template.name.matches("dts"):
         return "dts"
     elif template.name.matches("datesort"):
@@ -142,27 +141,29 @@ def figure_type(template):
         return False
 
 def process_page(text,dry_run):
+    """
+    Processes the page and removes the link parameter from
+    dts template (and its redirects/aliases).
+    @returns list containing content_changed flag and str casted code
+    It raises a ValueError
+    in the event that something went wrong (most likely an edit error or
+    insufficient permissions).
+    """
     wikicode = mwparserfromhell.parse(text)
     templates = wikicode.filter_templates()
     content_changed = False
 
-
-    code = mwparserfromhell.parse(text)
+    code = mwparserfromhell.parse(text) # parse WikiCode on page
     for template in code.filter_templates():
-        #if (template.name.matches("infobox album") or template.name.matches("album infobox")
-        #or template.name.matches("album infobox soundtrack") or template.name.matches("dvd infobox")
-        #or template.name.matches("infobox dvd") or template.name.matches("infobox ep")):
         type = figure_type(template)
         if(type):
             try:
-                #name = template.name
-                #template.name = "d" + temp
-                if(template.has("link")):
+                if template.has("link"):
                     template.remove("link")
                     content_changed = True
-                print("params")
+                print("Link removed")
             except ValueError:
-                raise
+                raise   # deal with this at a higher level
     return [content_changed, str(code)] # get back text to save
 
 def single_run(title, utils, site):
@@ -173,12 +174,11 @@ def single_run(title, utils, site):
     if site is None:
         raise ValueError("Site cannot be empty!")
     print(title)
-    page = site.Pages[title]#'3 (Bo Bice album)']
+    page = site.Pages[title]
     text = page.text()
 
     try:
-        #utils = [config,site,dry_run]
-        save_edit(page, utils, text)#config, api, site, text, dry_run)#, config)
+        save_edit(page, utils, text)
     except ValueError as err:
         print(err)
 def category_run(cat_name, utils, site, offset,limited_run,pages_to_run):
@@ -207,7 +207,7 @@ def category_run(cat_name, utils, site, offset,limited_run,pages_to_run):
                 counter += 1
                 text = page.text()
                 try:
-                    save_edit(page, utils, text)#config, api, site, text, dry_run)#, config)
+                    save_edit(page, utils, text)
                 except ValueError as err:
                     print(err)
             else:
@@ -223,8 +223,6 @@ def main():
     {{infobox album}}, {{extra chronology}}, {{extra album cover}}, and {{extra track listing}} templates. This results in the template substitution trick which replaces deprecated parameters with their correct values to occur.''')
     parser.add_argument("-dr", "--dryrun", help="perform a dry run (don't actually edit)",
                     action="store_true")
-    #parser.add_argument("-arch","--archive", help="actively archive Tweet links (even if still live links)",
-    #                action="store_true")
     args = parser.parse_args()
     if args.dryrun:
         dry_run = True
@@ -239,16 +237,12 @@ def main():
         #pass
         site.login(config.get('enwikidep','username'), config.get('enwikidep', 'password'))
     except errors.LoginError as e:
-        #print(e[1]['reason'])
         print(e)
         raise ValueError("Login failed.")
 
     utils = [config,site,dry_run]
     try:
-        single_run("User:JandK87/Irish (UK) general election, December 1910", utils, site)
-        single_run('User:JandK87/List of UK by elections in Ireland', utils, site)
-        single_run('List of Irish by-elections', utils, site)
-    #    category_run(category, utils, site, offset,limited_run,pages_to_run)
+        category_run(category, utils, site, offset,limited_run,pages_to_run)
     except ValueError as e:
         print("\n\n" + str(e))
 
